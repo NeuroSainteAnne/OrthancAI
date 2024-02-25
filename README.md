@@ -1,6 +1,10 @@
 # OrthancAI
 
-## What is OrthancAI ?
+## Summary
+[What is OrthancAI](#what-is-orthancai)
+[How to install OrthancAI](#how-to-install-orthancai)
+
+## What is OrthancAI?
 
 **OrthancAI** is a wraparound around [Orthanc](https://orthanc.uclouvain.be/) and [Orthanc Python plugin](https://orthanc.uclouvain.be/book/plugins/python.html), tailored for the deployment of fast and custom AI inference modules in a clinical workflow.
 
