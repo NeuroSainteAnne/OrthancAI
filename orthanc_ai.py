@@ -41,6 +41,15 @@ def clean_json(filepath):
 def dir_public_attributes(obj):
     return [x for x in dir(obj) if not x.startswith('__')]
 
+def flatten_gen(mylist):
+    for i in mylist:
+        if isinstance(i, (list,tuple)):
+            for j in flatten(i): yield j
+        else:
+            yield i
+def flatten(mylist):
+    return list(flatten_gen(mylist))
+
 class OrthancAI():
     def __init__(self, config_path):
         self.config_path = config_path
@@ -50,7 +59,7 @@ class OrthancAI():
         self.main_config = None
         self.modules_list = {}
         try:
-            self.main_config_read()
+            self.update_architecture()
         except Exception as e:
             orthanc.LogWarning("Error during loading config : " + str(e))
             print(traceback.format_exc())
@@ -65,14 +74,13 @@ class OrthancAI():
                         self.check_module_update(module_id)
                 else:
                     self.module_load(module_id, module_path)
-            except:
+            except Exception as e:
                 orthanc.LogWarning("Error during loading module `" + module_id + "` : " + str(e))
                 print(traceback.format_exc())
 
     def check_module_update(self, module_id):
         self.modules_list[module_id].check_module_update()
         if not self.modules_list[module_id]: del self.modules_list[module_id]
-
 
     def check_mandatory_parameters(self, list_parameters, config=None):
         if config is None:
@@ -93,7 +101,7 @@ class OrthancAI():
             if not self.modules_list[m]:
                 del self.modules_list[m]
 
-    def main_config_read(self):
+    def update_architecture(self):
         # first we check the md5sum of config file to see if it is changed
         config_md5 = md5_file(self.config_path)
 
@@ -104,8 +112,8 @@ class OrthancAI():
             self.main_config = temporary_config
             self.main_config_md5 = config_md5
 
-            # load modules if configuration file has changed
-            self.module_crawler()
+        # load modules
+        self.module_crawler()
 
     def callback(self, changeType, level, resourceId):
         try:
@@ -115,49 +123,103 @@ class OrthancAI():
             print(traceback.format_exc())
 
     def safe_callback(self, changeType, level, resourceId):
-        self.module_crawler()
-
-        if changeType == orthanc.ChangeType.STABLE_SERIES:
-            changeType = "Series"
-            instances = json.loads(orthanc.RestApiGet("/series/"+resourceId))["Instances"]
-        elif changeType == orthanc.ChangeType.STABLE_PATIENT:
+        changeMode = ""
+        if changeType == orthanc.ChangeType.STABLE_PATIENT:
             changeType = "Patient"
-            studies = json.loads(orthanc.RestApiGet("/patients/"+resourceId))["Studies"]
-            series = []
-            for s in studies:
-                series += json.loads(orthanc.RestApiGet("/studies/"+s))["Series"]
-            instances = []
-            for s in series:
-                instances += json.loads(orthanc.RestApiGet("/series/"+s))["Instances"]
+            instances = resourceId
         elif changeType == orthanc.ChangeType.STABLE_STUDY:
             changeType = "Study"
-            series = json.loads(orthanc.RestApiGet("/studies/"+resourceId))["Series"]
-            instances = []
-            for s in series:
-                instances += json.loads(orthanc.RestApiGet("/series/"+s))["Instances"]
+            instances = [resourceId]
+        elif changeType == orthanc.ChangeType.STABLE_SERIES:
+            changeType = "Series"
+            instances = [[resourceId]]
         else:
             return
 
+        self.update_architecture()
+
+        # get all instances ID
+        numinstances = 0
+        if type(instances) is str:
+            instances = json.loads(orthanc.RestApiGet("/patients/"+instances))["Studies"]
+        for st in range(len(instances)):
+            if type(instances[st]) is str:
+                instances[st] = json.loads(orthanc.RestApiGet("/studies/"+instances[st]))["Series"]
+            for se in range(len(instances[st])):
+                if type(instances[st][se]) is str:
+                    instances[st][se] = json.loads(orthanc.RestApiGet("/series/"+instances[st][se]))["Instances"]
+                    numinstances += len(instances[st][se])
+
+        if numinstances == 0:
+            return
+
+        metadata = json.loads(orthanc.RestApiGet("/instances/"+instances[0][0][0]+"/metadata?expand"))
+
+        # internal file send : the files should be deleted
+        if "CalledAET" not in metadata.keys():
+            if changeType == "Patient":
+                if metadata["Origin"] == "Plugins":
+                    if self.main_config["AutoRemove"]:
+                        self.cleanup_instances(instances) # cleanup already used resources
+        else: # external file send : dispatch to different modules
+            for module in self.modules_list.values():
+                if module.config["TriggerLevel"] == changeType and metadata["CalledAET"] == module.config["CallingAET"]:
+                    files = []
+                    for st in range(len(instances)): # create recursive array of files
+                        files.append([])
+                        for se in range(len(instances[st])):
+                            files[st].append([])
+                            for instanceId in instances[st][se]:
+                                f = orthanc.GetDicomForInstance(instanceId)
+                                dc = dcmread(BytesIO(f))
+                                if module.apply_filters(dc):
+                                    files[st][se].append(dc)
+                    for st in reversed(range(len(files))): # clean up empty arrays
+                        for se in reversed(range(len(files[st]))):
+                            if len(files[st][se]) == 0: del files[st][se]
+                        if len(files[st]) == 0: del files[st]
+                    if len(files) == 0: return
+                    if changeType == "Study": files = files[0]
+                    if changeType == "Series": files = files[0][0]
+                    try:
+                        processed_files = module.process(files, metadata["RemoteAET"])
+                        if processed_files and processed_files is not None:
+                            self.push_files(processed_files, module.config["DestinationName"])
+                    except Exception as e:
+                        orthanc.LogWarning("Error during module `" + module.module_id + "` processing : " + str(e))
+                        print(traceback.format_exc())
+
+            # last fired event : we clean up all instances
+            if changeType == "Patient":
+                if self.main_config["AutoRemove"]:
+                    self.cleanup_instances(instances)
+
+    def cleanup_instances(self, instances):
+        if type(instances) is not list:
+            instances = [instances]
+        instances = flatten(instances)
         if len(instances) == 0:
             return
+        postString = json.dumps({"Resources":instances})
+        orthanc.RestApiPost("/tools/bulk-delete", postString)
 
-        metadata = json.loads(orthanc.RestApiGet("/instances/"+instances[0]+"/metadata?expand"))
+    def push_files(self, files, destination):
+        if type(files) is not list:
+            files = [files]
+        files = flatten(files)
+        instances = []
+        for f in files:
+            bytesfile = BytesIO()
+            f.save_as(bytesfile)
+            instanceinfo = json.loads(orthanc.RestApiPost("/instances", bytesfile.getvalue()))
+            del bytesfile
+            instances += [instanceinfo["ID"]]
+        self.push_instances(instances, destination)
 
-        if "CalledAET" not in metadata.keys():
-            if metadata["Origin"] == "Plugins":
-                if "AutoRemove" in self.main_config.keys():
-                    if self.main_config["AutoRemove"]:
-                        orthanc.RestApiDelete("/series/"+resourceId) # cleanup already used resources
-                return
-        else:
-            for module in self.modules_list.values():
-                if module.config["TriggerLevel"] == changeType:
-                    files = []
-                    for instanceId in instances:
-                        f = orthanc.GetDicomForInstance(instanceId)
-                        files += [dcmread(BytesIO(f))]
-                    filesfiltered = [i for i in files if module.apply_filters(i)]
-                    print(len(filesfiltered),"LEN")
+    def push_instances(self, instances, destination):
+        instances = flatten(instances)
+        postString = json.dumps({"Resources":instances})
+        orthanc.RestApiPost("/modalities/" + destination + "/store", postString)
 
 class OrthancAIModule():
     def __init__(self, module_id, module_path):
@@ -246,6 +308,13 @@ class OrthancAIModule():
                             if re.search(filter, attribute) is not None:
                                 return False
         return True
+
+    def process(self, files, remote_aet):
+        if self.module_instance is not None:
+            return self.module_instance.process(files, remote_aet)
+        else:
+            return []
+
     def __bool__(self):
         return self.loaded
 
