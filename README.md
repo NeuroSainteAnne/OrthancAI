@@ -21,13 +21,17 @@ The advantages of **OrthancAI** are:
    - Install Python (>=3.9)
      ```
      sudo apt update
-     sudo apt install python3
+     sudo apt install python3 python3-pip
      ```
    - Install Orthanc and its Python plugin
      ```
      sudo apt install orthanc orthanc-dev orthanc-python
      ```
    - Download OrthancAI latest release and copy files in **/etc/orthanc**
+   - Install python requirements
+     ```
+     pip install -r requirements.txt
+     ```
      
 2. Install Docker image : *TODO*
 
