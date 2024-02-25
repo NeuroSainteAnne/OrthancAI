@@ -1,0 +1,16 @@
+{
+  // OAI mandatory parameters
+  "ClassName" : "TestOAI",
+  "TriggerLevel": "Series",
+  "CallingAET": "TEST",
+  "DestinationName": "dicomdestination",
+  "Filters": {
+  },
+  "NegativeFilters": {
+    // prevents multiple passes in the module 
+    "SeriesDescription": ["Test"] 
+  },
+  // MODULE PARAMETERS
+  "label": "Test",
+  "text": "This is a test"
+}
