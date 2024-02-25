@@ -8,6 +8,42 @@ import orthanc
 from PIL import Image, ImageDraw, ImageFont
 import pydicom
 
+###################### GENERAL PURPOSE TOOLS ######################
+
+# md5_file : sends back the md5 hash for a file
+def md5_file(filepath):
+     with open(filepath, "rb") as f:
+         filedata = f.read()
+     return hashlib.md5(filedata).hexdigest()
+
+# clean_json : remove the comments "//" from json file and send back a dictionary
+def clean_json(filepath):
+    with open(filepath) as cf_file:
+        # remove comments
+        cf_data = ''.join(re.sub(r'\/\/.*', '', line) for line in cf_file)
+        # store config file
+        try:
+          return json.loads(cf_data)
+        except Exception as e:
+          raise Exception("Error during reading JSON `" + filepath + "` : " + str(e))
+
+# dir_public_attributes : returns only the public attributes of a class
+def dir_public_attributes(obj):
+    return [x for x in dir(obj) if not x.startswith('__')]
+
+# flatten lists
+def flatten(mylist):
+    def flatten_gen(mylist):
+        for i in mylist:
+            if isinstance(i, (list,tuple)):
+                for j in flatten(i): yield j
+            else:
+                yield i
+    return list(flatten_gen(mylist))
+
+###################### DICOM SENDING TOOLS ######################
+
+# pushes an array of file to an orthanc destination
 def push_files_to(files, destination):
     if type(files) is not list:
         files = [files]
@@ -21,39 +57,16 @@ def push_files_to(files, destination):
         instances += [instanceinfo["ID"]]
     push_instances_to(instances, destination)
 
+# pushes an array of instanceIds (orthanc identifier) to an orthanc destination
 def push_instances_to(instances, destination):
     instances = flatten(instances)
     postString = json.dumps({"Resources":instances})
     orthanc.RestApiPost("/modalities/" + destination + "/store", postString)
 
-def md5_file(filepath):
-    with open(filepath, "rb") as f:
-        filedata = f.read()
-    return hashlib.md5(filedata).hexdigest()
 
-def clean_json(filepath):
-    with open(filepath) as cf_file:
-        # remove comments
-        cf_data = ''.join(re.sub(r'\/\/.*', '', line) for line in cf_file)
-        # store config file
-        try:
-            return json.loads(cf_data)
-        except Exception as e:
-            raise Exception("Error during reading JSON `" + filepath + "` : " + str(e))
+###################### DICOM MANIPULATION TOOLS ######################
 
-def dir_public_attributes(obj):
-    return [x for x in dir(obj) if not x.startswith('__')]
-
-def flatten_gen(mylist):
-    for i in mylist:
-        if isinstance(i, (list,tuple)):
-            for j in flatten(i): yield j
-        else:
-            yield i
-
-def flatten(mylist):
-    return list(flatten_gen(mylist))
-
+# Takes a PILImage, converts it to a JPEG format and stores it in a dcmfile
 def push_PILImage_in_DICOM(dcmfile, PILImage):
     pixArr = np.array(PILImage).astype(np.uint8)
     dcmfile.SamplesPerPixel = 3
@@ -70,6 +83,7 @@ def push_PILImage_in_DICOM(dcmfile, PILImage):
     dcmfile.compress(RLELossless)
     return dcmfile
 
+# Adds a white text to the top-left of all images in an dcmfile list
 def add_text_to_dicom(dcmfiles, textvalue, fontsize=24):
     singleFile = False
     if type(dcmfiles) != list:
@@ -94,6 +108,7 @@ def add_text_to_dicom(dcmfiles, textvalue, fontsize=24):
     if singleFile: return dcmconv[0]
     return dcmconv
 
+# renames a series by prepending a text, and changes its SeriesID and UID
 def rename_series(dcmfiles, textvalue):
     singleFile = False
     if type(dcmfiles) != list:
