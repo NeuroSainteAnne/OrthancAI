@@ -106,3 +106,43 @@ Each filter shall have the following structure:
   },
 ```
 For **Positive** filters, each key should match with one of the strings given (regular expressions allowed). For **Negative** filters, each key should NOT match with any of the strings given.
+
+## Structure of OrthancAI modules
+
+You're now ready to deploy your first module! You can have a look at *oia_test.py* module which is a simple example that capture a series and adds a simple white text in its top-left corner.
+
+Each module contains at least two files :
+
+- a configuration file, **oai_xxx.json** that contains the mandatory parameters (cf supra) and optional parameters that can be used in the module
+- a python module file, which should be structured around a class (whose name is defined in the configuration file). The structure of the class should be the following :
+
+```
+class ModuleName():
+    def __init__(self, config):
+        self.config = config
+
+    def process(self, files, source_aet):
+        # do something with files
+        return files
+```
+
+The **\_\_init\_\_** subroutine will be called at each module reload (in case of modification of the config files or the module python script). All variables relative to the module should be defined here, in particular if you have to load a machine learning model, you should do it here (so that it will be ready to use during processing time). This subroutine is called wirth a *config* variable which is simply the pythonized content of the json configuration file.
+
+The **process** subroutine will be called each time a matching exam is send to the orthanc server. The *files* variable contains the dicom files (in [pydicom](https://pydicom.github.io/) format) as an array, whose structure is dependent on the *TriggerLevel* parameter in configuration file:
+
+- if the *TriggerLevel* is "Series", it will be simply a flat array of dicom files of the sent series `[file1, file2]`
+- if the *TriggerLevel* is "Study", it will be simply a collection of arrays, each array containing a whole series `[[series1_file1, series1_file2],[series2_file1,series2_file2]]`
+- if the *TriggerLevel* is "Patient", it will be simply a collection of arrays, each array containing a whole study, with nested series `[[[study1_series1_file1, study1_series1_file2],[study1_series2_file1,study1_series2_file2]],[[study2_series_1_file_1],[study2_series2_file_1]]]`
+
+The **process** subroutine is also called with a *source_aet* parameter that is the origin from the files.
+
+At last, the **process** subroutine should return a list of pydicom files that will be sent to the DICOM destination defined in the configuration file (or *None* if it is not necessary). Be aware that if you send back some series, you should modify series so that there will be no conflict with original series... but for that, the **tools** can help you !
+
+## Tools module
+
+**OrthancIA** comes with a number of tools that you can call with the `import tools` command. These include :
+
+- `push_files_to(files, destination)`, will send the *files* dicom files to the *destination* orthance destination
+- `push_PILImage_in_DICOM(dcmfile, PILImage)` that will allow to convert a [PILImage](https://pillow.readthedocs.io/) into JPEG and encapsulate it in a *dcmfile* dicom file
+- `add_text_to_dicom(dcmfiles, textvalue, [fontsize=24])` that will add white text to a dicom or several dicom files
+- `rename_series(dcmfiles, textvalue)` : allows not only to prepend a *textvalue* text to the name of a series but also change its UID so that it can be pushed back onto your PACS without confict
