@@ -6,10 +6,11 @@ import hashlib
 import re
 import glob
 import orthanc
-import imp
+import importlib.util, sys
 import traceback
 from pydicom import dcmread
 from io import BytesIO
+
 
 ## ABSOLUTE configuration path for Orthanc AI
 config_path = "/etc/orthanc/orthanc_ai.json"
@@ -193,7 +194,10 @@ class OrthancAIModule():
         if self.loaded:
             raise Exception("Please unload module before loading it")
         self.module_md5 = md5_file(self.module_path)
-        self.module_lib = imp.load_source(self.module_id, self.module_path)
+        self.module_spec = importlib.util.spec_from_file_location(self.module_id, self.module_path)
+        self.module_lib = importlib.util.module_from_spec(self.module_spec)
+        sys.modules[self.module_id] = self.module_lib
+        self.module_spec.loader.exec_module(self.module_lib)
         self.module_class = getattr(self.module_lib, self.config["ClassName"])
         self.module_instance = self.module_class(self.config)
         orthanc.LogWarning("Loaded module ``" + self.module_id + "``")
