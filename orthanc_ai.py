@@ -11,9 +11,12 @@ import traceback
 from pydicom import dcmread
 from io import BytesIO
 
+sys.path.append(os.path.join(os.path.dirname(__file__), "oai_modules"))
+from tools import md5_file, clean_json, dir_public_attributes, flatten, push_files_to
 
-## ABSOLUTE configuration path for Orthanc AI
-config_path = "/etc/orthanc/orthanc_ai.json"
+
+## ABSOLUTE path for Orthanc AI
+config_path = __file__.replace(".py",".json")
 
 ### Internal configuration
 mandatory_parameters = ["ModuleLoadingHeuristic","AutoRemove"]
@@ -23,32 +26,6 @@ list_filters = ["AccessionNumber","PatientName","PatientID","StudyDescription","
                 "InstitutionName", "InstitutionalDepartmentName", "Manufacturer", "ManufacturerModelName",
                 "Modality", "OperatorsName", "PerformingPhysicianName", "ProtocolName", "StudyID"]
 
-def md5_file(filepath):
-    with open(filepath, "rb") as f:
-        filedata = f.read()
-    return hashlib.md5(filedata).hexdigest()
-
-def clean_json(filepath):
-    with open(filepath) as cf_file:
-        # remove comments
-        cf_data = ''.join(re.sub(r'\/\/.*', '', line) for line in cf_file)
-        # store config file
-        try:
-            return json.loads(cf_data)
-        except Exception as e:
-            raise Exception("Error during reading JSON `" + filepath + "` : " + str(e))
-
-def dir_public_attributes(obj):
-    return [x for x in dir(obj) if not x.startswith('__')]
-
-def flatten_gen(mylist):
-    for i in mylist:
-        if isinstance(i, (list,tuple)):
-            for j in flatten(i): yield j
-        else:
-            yield i
-def flatten(mylist):
-    return list(flatten_gen(mylist))
 
 class OrthancAI():
     def __init__(self, config_path):
@@ -204,22 +181,7 @@ class OrthancAI():
         orthanc.RestApiPost("/tools/bulk-delete", postString)
 
     def push_files(self, files, destination):
-        if type(files) is not list:
-            files = [files]
-        files = flatten(files)
-        instances = []
-        for f in files:
-            bytesfile = BytesIO()
-            f.save_as(bytesfile)
-            instanceinfo = json.loads(orthanc.RestApiPost("/instances", bytesfile.getvalue()))
-            del bytesfile
-            instances += [instanceinfo["ID"]]
-        self.push_instances(instances, destination)
-
-    def push_instances(self, instances, destination):
-        instances = flatten(instances)
-        postString = json.dumps({"Resources":instances})
-        orthanc.RestApiPost("/modalities/" + destination + "/store", postString)
+        push_files_to(files, destination)
 
 class OrthancAIModule():
     def __init__(self, module_id, module_path):
