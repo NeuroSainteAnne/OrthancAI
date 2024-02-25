@@ -15,8 +15,8 @@ from io import BytesIO
 config_path = "/etc/orthanc/orthanc_ai.json"
 
 ### Internal configuration
-mandatory_parameters = ["ModuleLoadingHeuristic","ExportDestination"]
-mandatory_module_parameters = ["TriggerLevel","ClassName","CallingAET"]
+mandatory_parameters = ["ModuleLoadingHeuristic","AutoRemove"]
+mandatory_module_parameters = ["TriggerLevel","ClassName","CallingAET","DestinationName"]
 authorized_triggers = ["Patient","Series","Study"]
 list_filters = ["AccessionNumber","PatientName","PatientID","StudyDescription","SeriesDescription","ImageType",
                 "InstitutionName", "InstitutionalDepartmentName", "Manufacturer", "ManufacturerModelName",

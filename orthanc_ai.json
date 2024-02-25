@@ -1,6 +1,5 @@
 {
   // GENERAL CONFIGURATION OF ORTHANC IA
   "ModuleLoadingHeuristic" : "oai_modules/oai_*.py",
-  "ExportDestination": "",
   "AutoRemove": true
 }
