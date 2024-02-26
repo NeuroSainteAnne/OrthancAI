@@ -22,7 +22,7 @@ The advantages of **OrthancAI** are:
 - Cleanup system, allowing a temporary storage of processed files, thus increasing safety and reducing storage requirements
 - Dynamic module loading, allowing to hot-change modules parameters and code source without restarting Orthanc
 
-![OrthancAI global architecture design](doc/OrthancAIWorkflow.jpg)
+<img src="doc/OrthancAIWorkflow.jpg" width="800" alt="OrthancAI global architecture design">
 
 
 ## How to install OrthancAI
@@ -42,6 +42,10 @@ The advantages of **OrthancAI** are:
    - Install python requirements
      ```
      pip install -r requirements.txt
+     ```
+   - Start Orthanc
+     ```
+     sudo /usr/sbin/Orthanc /etc/orthanc
      ```
      
 2. Install Docker image : *TODO*
