@@ -47,7 +47,7 @@ class OrthancAI():
 
     # Subroutine for auto-reloading modules
     def start_timer(self):
-        if self.Timer is None:
+        if self.Timer is None and self.main_config["AutoReloadEach"] > 0:
             self.Timer = threading.Timer(self.main_config["AutoReloadEach"], self.perform_timer)
             self.Timer.start()
     def perform_timer(self):
