@@ -51,13 +51,11 @@ class OrthancAI():
             self.Timer = threading.Timer(self.main_config["AutoReloadEach"], self.perform_timer)
             self.Timer.start()
     def perform_timer(self):
+        self.Timer = None
         if not self.LockTimer:
-            self.LockTimer = True
-            self.Timer = None
             self.update_architecture()
-            self.Timer = threading.Timer(self.main_config["AutoReloadEach"], self.perform_timer)
-            self.LockTimer = False
-            self.Timer.start()
+        self.Timer = threading.Timer(self.main_config["AutoReloadEach"], self.perform_timer)
+        self.Timer.start()
     def stop_timer(self):
         if self.Timer is None:
             self.Timer.cancel()
