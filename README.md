@@ -34,7 +34,7 @@ The advantages of **OrthancAI** are:
      ```
      sudo apt install orthanc orthanc-dev orthanc-python
      ```
-   - Download OrthancAI latest release and copy files in **/etc/orthanc**
+   - Download OrthancAI latest release and copy `orthanc_ai.py, orthanc_ai.json and oai_modules folder` in **/etc/orthanc**
    - Install python requirements
      ```
      pip install -r requirements.txt
