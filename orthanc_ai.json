@@ -1,5 +1,6 @@
 {
   // GENERAL CONFIGURATION OF ORTHANC IA
   "ModuleLoadingHeuristic" : "oai_modules/oai_*.py",
-  "AutoRemove": true
+  "AutoRemove": true,
+  "AutoReloadEach": 10 // in seconds
 }

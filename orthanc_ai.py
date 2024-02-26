@@ -10,6 +10,7 @@ import importlib.util, sys
 import traceback
 from pydicom import dcmread
 from io import BytesIO
+import threading
 
 # In order to allow tools loading from inside modules, we add the "oai_modules" directory to the path
 sys.path.append(os.path.join(os.path.dirname(__file__), "oai_modules"))
@@ -19,7 +20,7 @@ from tools import md5_file, clean_json, dir_public_attributes, flatten, push_fil
 config_path = __file__.replace(".py",".json")
 
 ### Internal configuration
-mandatory_parameters = ["ModuleLoadingHeuristic","AutoRemove"]
+mandatory_parameters = ["ModuleLoadingHeuristic","AutoRemove","AutoReloadEach"]
 mandatory_module_parameters = ["TriggerLevel","ClassName","CallingAET","DestinationName"]
 authorized_triggers = ["Patient","Series","Study"]
 list_filters = ["AccessionNumber","PatientName","PatientID","StudyDescription","SeriesDescription","ImageType",
@@ -36,11 +37,31 @@ class OrthancAI():
         self.main_config_md5 = ""
         self.main_config = None
         self.modules_list = {}
+        self.Timer = None
+        self.LockTimer = True
         try:
             self.update_architecture() # Main subroutine for config loading and modules loading
         except Exception as e:
             orthanc.LogWarning("Error during loading config : " + str(e))
             print(traceback.format_exc())
+
+    # Subroutine for auto-reloading modules
+    def start_timer(self):
+        if self.Timer is None:
+            self.Timer = threading.Timer(self.main_config["AutoReloadEach"], self.perform_timer)
+            self.Timer.start()
+    def perform_timer(self):
+        if not self.LockTimer:
+            self.LockTimer = True
+            self.Timer = None
+            self.update_architecture()
+            self.Timer = threading.Timer(self.main_config["AutoReloadEach"], self.perform_timer)
+            self.LockTimer = False
+            self.Timer.start()
+    def stop_timer(self):
+        if self.Timer is None:
+            self.Timer.cancel()
+            self.Timer = None
 
     def module_crawler(self):
         # get list of present modules according to heuristic in configuration file
@@ -123,9 +144,18 @@ class OrthancAI():
         elif changeType == orthanc.ChangeType.STABLE_SERIES:
             changeType = "Series"
             instances = [[resourceId]]
+        elif changeType == orthanc.ChangeType.ORTHANC_STARTED:
+            self.start_timer()
+            self.LockTimer = False
+            return
+        elif changeType == orthanc.ChangeType.ORTHANC_STOPPED:
+            self.LockTimer = True
+            self.stop_timer()
+            return
         else:
             return # other event, not supported
 
+        self.LockTimer = True # prevent any module loading during callback
         print("Callback `" + changeType + "` with instance : " + resourceId)
 
         # update the OrthancAI architecture, if needed
@@ -218,6 +248,7 @@ class OrthancAI():
             # StablePatient is always the last fired event : we clean up all instances
             if changeType == "Patient" and self.main_config["AutoRemove"]:
                 self.cleanup_instances(externalInstances)
+        self.LockTimer = False # free auto-reloading
 
     def cleanup_instances(self, instances):
         # delete list of instanceId using orthanc API
