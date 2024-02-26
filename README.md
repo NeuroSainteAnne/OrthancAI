@@ -57,42 +57,27 @@ The advantages of **OrthancAI** are:
 To configure your Orthanc server, you can check official [Orthanc documentation](https://orthanc.uclouvain.be/book/users/configuration.html#configuration). We recommend you set the following parameters in the **/etc/orthanc/orthanc.json** file for optimal compatibility:
 
 - Enable REST API which is necessary for OrthancAI to work :
-```
-"HttpServerEnabled" : true 
-```
+`"HttpServerEnabled" : true`
 
 - Activate DICOM server for obvious reasons
-```
-"DicomServerEnabled" : true
-```
+`"DicomServerEnabled" : true`
 
 - Enable multiple AET for multiple modules :
-```
-"DicomCheckCalledAet" : false
-```
+`"DicomCheckCalledAet" : false`
 
 - Set the port of your choice for DICOM incoming requests:
-```
-"DicomPort" : 8042
-```
+`"DicomPort" : 8042`
 
 - Under the **"DicomModality"** header, add your PACS destination.
-```
-"DestinationName" : {"AET" : "AET", "Host" : "123.456.789.0", "Port" : 1234 }
-```
+`"DestinationName" : {"AET" : "AET", "Host" : "123.456.789.0", "Port" : 1234 }`
 
 - Number of seconds for the series/study/patient considered as stable (I usually set it to 5 seconds)
-```
-"StableAge" : 5
-```
+`"StableAge" : 5`
 
 ### Configure Python plugin
 
 In the **/etc/orthanc/python.json** file, set the following parameter:
-
-```
-"PythonScript" : "/etc/orthanc/orthanc_ai.py"
-```
+`"PythonScript" : "/etc/orthanc/orthanc_ai.py"`
 
 ### Configure OrthancAI
 
