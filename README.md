@@ -1,15 +1,11 @@
 # OrthancAI
 
 ## Summary
-[What is OrthancAI](#what-is-orthancai)
-
-[Installation](#how-to-install-orthancai)
-
-[Configuration](#configure-orthanc-python-plugin-and-orthanc-ai)
-
-[OrthancAI modules](#structure-of-orthancai-modules)
-
-[Tools](#tools-module)
+- [What is OrthancAI](#what-is-orthancai)
+- [Installation](#how-to-install-orthancai)
+- [Configuration](#configure-orthanc-python-plugin-and-orthanc-ai)
+- [OrthancAI modules](#structure-of-orthancai-modules)
+- [Tools](#tools-module)
 
 ## What is OrthancAI?
 
