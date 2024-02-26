@@ -11,6 +11,7 @@ import traceback
 from pydicom import dcmread
 from io import BytesIO
 import threading
+from multiprocessing import Pool
 
 # In order to allow tools loading from inside modules, we add the "oai_modules" directory to the path
 sys.path.append(os.path.join(os.path.dirname(__file__), "oai_modules"))
@@ -20,7 +21,7 @@ from tools import md5_file, clean_json, dir_public_attributes, flatten, push_fil
 config_path = __file__.replace(".py",".json")
 
 ### Internal configuration
-mandatory_parameters = ["ModuleLoadingHeuristic","AutoRemove","AutoReloadEach"]
+mandatory_parameters = ["ModuleLoadingHeuristic","AutoRemove","AutoReloadEach","MultiprocessModules"]
 mandatory_module_parameters = ["TriggerLevel","ClassName","CallingAET","DestinationName"]
 authorized_triggers = ["Patient","Series","Study"]
 list_filters = ["AccessionNumber","PatientName","PatientID","StudyDescription","SeriesDescription","ImageType",
@@ -39,6 +40,7 @@ class OrthancAI():
         self.modules_list = {}
         self.Timer = None
         self.LockTimer = True
+        self.Pool = None
         try:
             self.update_architecture() # Main subroutine for config loading and modules loading
         except Exception as e:
@@ -118,6 +120,10 @@ class OrthancAI():
             self.check_mandatory_parameters(mandatory_parameters, temporary_config)
             self.main_config = temporary_config
             self.main_config_md5 = config_md5
+            if self.config["MultiprocessModules"]:
+                self.Pool = Pool(self.config["MultiprocessModules"])
+            else:
+                self.Pool = None
 
         # load or reload modules
         self.module_crawler()
@@ -211,6 +217,9 @@ class OrthancAI():
                             dc = dcmread(BytesIO(f))
                             allfiles[st][se].append(dc)
                 # then, we check each module compatible with the trigger type
+                if self.Pool is not None:
+                    list_calls = []
+                    all_destinations = []
                 for module in self.modules_list.values():
                     if module.config["TriggerLevel"] == changeType and metadata["CalledAET"] == module.config["CallingAET"]:
                         files = []
@@ -231,22 +240,36 @@ class OrthancAI():
                             # format the files array in the correct shape
                             if changeType == "Study": files = files[0]
                             if changeType == "Series": files = files[0][0]
-                            try:
+                            if self.Pool is not None:
+                                list_calls += [(module.module_id, files, metadata["RemoteAET"])]
+                                all_destinations += [module.config["DestinationName"]]
+                            else:
                                 # send the filtered files to the module
-                                orthanc.LogWarning("Calling `" + module.module_id + "` at level : " + changeType + \
-                                                " with " + str(len(files)) + " files")
-                                processed_files = module.process(files, metadata["RemoteAET"])
+                                processed_files = self.process((module.module_id, files, metadata["RemoteAET"]))
                                 if processed_files and processed_files is not None:
                                     # if the module has returned files, we push them to DICOM server
                                     self.push_files(processed_files, module.config["DestinationName"])
-                            except Exception as e:
-                                orthanc.LogWarning("Error during module `" + module.module_id + "` processing : " + str(e))
-                                print(traceback.format_exc())
-
+            if self.Pool is not None and len(list_calls) > 0:
+                all_processed_files = p.map(self.process, list_calls)
+                for i in range(len(all_processed_files)):
+                    processed_files = all_processed_files[i]
+                    if processed_files and processed_files is not None:
+                        # if the module has returned files, we push them to DICOM server
+                        self.push_files(processed_files, all_destinations[i])
             # StablePatient is always the last fired event : we clean up all instances
             if changeType == "Patient" and self.main_config["AutoRemove"]:
                 self.cleanup_instances(externalInstances)
         self.LockTimer = False # free auto-reloading
+
+    def process(self, list_args):
+        try:
+            module_id, files, remote_aet = list_args
+            orthanc.LogWarning("Calling `" + module_id + "` " + \
+                            " with " + str(len(files)) + " files")
+            return self.modules_list[module_id].process(files, remote_aet)
+        except Exception as e:
+            orthanc.LogWarning("Error during module `" + module_id + "` processing : " + str(e))
+            print(traceback.format_exc())
 
     def cleanup_instances(self, instances):
         # delete list of instanceId using orthanc API

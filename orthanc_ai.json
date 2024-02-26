@@ -2,5 +2,6 @@
   // GENERAL CONFIGURATION OF ORTHANC IA
   "ModuleLoadingHeuristic" : "oai_modules/oai_*.py",
   "AutoRemove": true,
-  "AutoReloadEach": 10 // in seconds
+  "AutoReloadEach": 3, // in seconds
+  "MultiprocessModules": 4 // number of threads
 }
