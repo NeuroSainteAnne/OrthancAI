@@ -96,6 +96,7 @@ Configuration of **/etc/orthanc/orthanc_ai.json** is pretty straightforward.
 
 - *ModuleLoadingHeuristic* defines how the modules are named and searched (using wildcards)
 - *AutoRemove* defines if files are deleted after being processed
+- *AutoReloadEach* defines the frequency (in seconds) at which all the modules will be checked for update. Note that this check will also be performed at each image reception, but autoreload could improve performance if module loading is slow. Set to 0 to deactivate
 
 ### Configure OrthancAI modules
 
