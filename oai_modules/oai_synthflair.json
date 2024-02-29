@@ -1,0 +1,19 @@
+{
+  // OAI mandatory parameters
+  "ClassName" : "SynthFlair",
+  "TriggerLevel": "Series",
+  "CallingAET": "SYNTHFLAIR",
+  "DestinationName": "Your_Dicom_Destination",
+  "Filters": {
+  },
+  "NegativeFilters": {
+    "SeriesDescription": ["SynthFLAIR","SynthT2eg"]
+  },
+  // MODULE PARAMETERS
+  // synthflair generator can be downloaded at https://github.com/NeuroSainteAnne/synthFLAIR/releases/
+  // warning valid tested in monocentric data for GE 1.5T only
+  "synthflair_generator_path": "/path/to/synthflair_generator", 
+
+  // not publicly available (coming soon...)
+  "syntht2eg_generator_path": false
+}
